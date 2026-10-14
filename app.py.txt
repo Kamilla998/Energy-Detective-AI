@@ -1,0 +1,425 @@
+
+import streamlit as st
+import pandas as pd
+
+from scenarios import get_scenario
+from agent import EnergyDetectiveAgent
+from energy_tools import calculate_energy_report
+
+
+st.set_page_config(
+    page_title="Energy Detective AI",
+    page_icon="⚡",
+    layout="wide",
+    initial_sidebar_state="expanded",
+)
+
+st.markdown("""
+<style>
+.stApp {
+    background: linear-gradient(145deg, #0b1220, #101d30);
+    color: #edf6ff;
+}
+.block-container {
+    max-width: 1450px;
+    padding-top: 2rem;
+}
+.hero {
+    padding: 30px;
+    border-radius: 22px;
+    background: linear-gradient(115deg, #123047, #087e83);
+    margin-bottom: 25px;
+    border: 1px solid #2c7180;
+}
+.hero h1 {
+    color: white;
+    font-size: 42px;
+}
+.hero p {
+    color: #d7f5f4;
+    font-size: 17px;
+}
+div[data-testid="stMetric"] {
+    background: #142438;
+    border: 1px solid #29445b;
+    padding: 17px;
+    border-radius: 15px;
+}
+div[data-testid="stMetricValue"] {
+    color: #56e0bd;
+}
+section[data-testid="stSidebar"] {
+    background: #101a2b;
+}
+div.stButton > button {
+    border-radius: 10px;
+    font-weight: 600;
+}
+</style>
+""", unsafe_allow_html=True)
+
+
+# ---------------- SESSION STATE ----------------
+
+if "investigation" not in st.session_state:
+    st.session_state.investigation = None
+
+if "run_count" not in st.session_state:
+    st.session_state.run_count = 0
+
+
+# ---------------- HEADER ----------------
+
+st.markdown("""
+<div class="hero">
+    <h1>⚡ ENERGY DETECTIVE AI</h1>
+    <p>
+        Your autonomous-style smart home energy investigator.
+        Detect waste, optimize appliances, and uncover savings.
+    </p>
+    <p>
+        INVESTIGATE &nbsp; • &nbsp; OPTIMIZE &nbsp; • &nbsp; SAVE
+    </p>
+</div>
+""", unsafe_allow_html=True)
+
+
+# ---------------- SIDEBAR ----------------
+
+with st.sidebar:
+    st.title("🎛️ Control Center")
+
+    st.caption("Configure your simulated smart home.")
+
+    scenario_name = st.selectbox(
+        "Choose an energy scenario",
+        [
+            "Normal Day",
+            "Peak Price Crisis",
+            "Heatwave",
+            "Solar Power Day",
+            "Grid Overload",
+            "Carbon Challenge",
+        ],
+        index=1,
+    )
+
+    st.divider()
+
+    peak_multiplier = st.slider(
+        "Peak electricity price multiplier",
+        min_value=1.0,
+        max_value=5.0,
+        value=3.0,
+        step=0.5,
+    )
+
+    solar_capacity = st.slider(
+        "Solar generation capacity (kW)",
+        min_value=0.0,
+        max_value=6.0,
+        value=3.0,
+        step=0.5,
+    )
+
+    grid_limit = st.slider(
+        "Maximum grid load (kW)",
+        min_value=4.0,
+        max_value=10.0,
+        value=7.0,
+        step=0.5,
+    )
+
+    carbon_weight = st.slider(
+        "Carbon reduction priority",
+        min_value=0.0,
+        max_value=1.0,
+        value=0.0,
+        step=0.1,
+    )
+
+    st.divider()
+
+    run_button = st.button(
+        "🔎 Run Energy Investigation",
+        use_container_width=True,
+        type="primary",
+    )
+
+    st.caption(
+        "Simulation only. No real appliances are controlled."
+    )
+
+
+# ---------------- SCENARIO CONFIGURATION ----------------
+
+scenario = get_scenario(
+    scenario_name=scenario_name,
+    peak_multiplier=peak_multiplier,
+    solar_capacity=solar_capacity,
+    grid_limit=grid_limit,
+    carbon_weight=carbon_weight,
+)
+
+
+# ---------------- RUN AGENT ----------------
+
+if run_button:
+    with st.spinner(
+        "Detective AI is investigating energy usage..."
+    ):
+        agent = EnergyDetectiveAgent(scenario)
+
+        result = agent.investigate()
+
+        report = calculate_energy_report(
+            scenario=scenario,
+            result=result,
+        )
+
+        st.session_state.investigation = {
+            "scenario": scenario,
+            "result": result,
+            "report": report,
+            "name": scenario_name,
+        }
+
+        st.session_state.run_count += 1
+
+
+# ---------------- RESULTS ----------------
+
+investigation = st.session_state.investigation
+
+if investigation is None:
+    st.info(
+        "👋 Welcome, Detective! Choose a scenario in the sidebar "
+        "and click 'Run Energy Investigation' to begin."
+    )
+
+    st.subheader("🧠 What your agent can investigate")
+
+    c1, c2, c3 = st.columns(3)
+
+    with c1:
+        st.markdown("### 💸 Energy waste")
+        st.write(
+            "Find appliances operating during expensive "
+            "electricity hours."
+        )
+
+    with c2:
+        st.markdown("### 🗓️ Smart scheduling")
+        st.write(
+            "Move flexible appliance jobs to better time slots "
+            "while respecting their operating constraints."
+        )
+
+    with c3:
+        st.markdown("### 🌱 Carbon awareness")
+        st.write(
+            "Compare estimated grid emissions and explore "
+            "lower-carbon operating schedules."
+        )
+
+    st.subheader("🏠 Simulated home")
+
+    appliance_preview = pd.DataFrame([
+        {"Appliance": "Electric vehicle", "Power": "3.3 kW"},
+        {"Appliance": "Water heater", "Power": "2.0 kW"},
+        {"Appliance": "Air conditioner", "Power": "1.5 kW"},
+        {"Appliance": "Dishwasher", "Power": "1.2 kW"},
+        {"Appliance": "Washing machine", "Power": "0.8 kW"},
+        {"Appliance": "Clothes dryer", "Power": "2.5 kW"},
+    ])
+
+    st.dataframe(
+        appliance_preview,
+        use_container_width=True,
+        hide_index=True,
+    )
+
+else:
+    scenario = investigation["scenario"]
+    result = investigation["result"]
+    report = investigation["report"]
+
+    st.subheader("🕵️ Investigation Results")
+
+    original_cost = report["original"]["total_cost"]
+    optimized_cost = report["optimized"]["total_cost"]
+
+    savings = original_cost - optimized_cost
+
+    savings_percent = (
+        savings / original_cost * 100
+        if original_cost > 0
+        else 0.0
+    )
+
+    m1, m2, m3, m4 = st.columns(4)
+
+    m1.metric(
+        "Original estimated bill",
+        f"${original_cost:.2f}",
+    )
+
+    m2.metric(
+        "Optimized estimated bill",
+        f"${optimized_cost:.2f}",
+    )
+
+    m3.metric(
+        "Estimated savings",
+        f"${savings:.2f}",
+        delta=f"{savings_percent:.1f}%",
+    )
+
+    m4.metric(
+        "Agent decisions",
+        str(len(result["decisions"])),
+    )
+
+    st.caption(
+        "Results are simulated estimates, not guaranteed real-world savings."
+    )
+
+    tab1, tab2, tab3, tab4 = st.tabs([
+        "📊 Energy Dashboard",
+        "🗓️ Smart Schedule",
+        "🧠 Agent Investigation",
+        "📥 Export Results",
+    ])
+
+    with tab1:
+        st.subheader("Hourly energy consumption")
+
+        hourly = pd.DataFrame(
+            report["hourly_comparison"]
+        )
+
+        if not hourly.empty:
+            chart_data = hourly.set_index("hour")[
+                ["original_load", "optimized_load"]
+            ]
+
+            st.line_chart(chart_data)
+
+            st.subheader("Electricity price by hour")
+
+            price_data = hourly.set_index("hour")[
+                ["price"]
+            ]
+
+            st.bar_chart(price_data)
+
+            st.subheader("Energy comparison")
+
+            energy_columns = st.columns(3)
+
+            energy_columns[0].metric(
+                "Original energy",
+                f"{report['original']['energy_kwh']:.2f} kWh",
+            )
+
+            energy_columns[1].metric(
+                "Optimized energy",
+                f"{report['optimized']['energy_kwh']:.2f} kWh",
+            )
+
+            energy_columns[2].metric(
+                "Optimized peak load",
+                f"{report['optimized']['peak_kw']:.2f} kW",
+            )
+
+    with tab2:
+        st.subheader("Appliance scheduling plan")
+
+        schedule = pd.DataFrame(result["schedule"])
+
+        st.dataframe(
+            schedule,
+            use_container_width=True,
+            hide_index=True,
+        )
+
+        violations = result["constraint_violations"]
+
+        if violations:
+            st.warning("The plan needs further constraint checks.")
+
+            for violation in violations:
+                st.write(f"- {violation}")
+        else:
+            st.success(
+                "The proposed schedule passed the configured "
+                "constraint checks."
+            )
+
+    with tab3:
+        st.subheader("🔍 Detective's decision log")
+
+        st.write(
+            "Follow the investigation from energy analysis "
+            "to the proposed optimized schedule."
+        )
+
+        for index, decision in enumerate(
+            result["decisions"], start=1
+        ):
+            with st.expander(
+                f"Step {index}: {decision['title']}",
+                expanded=index == 1,
+            ):
+                st.write(decision["details"])
+
+        st.subheader("Final recommendation")
+
+        st.write(result["summary"])
+
+    with tab4:
+        st.subheader("Download the investigation")
+
+        export = {
+            "scenario": investigation["name"],
+            "summary": result["summary"],
+            "report": report,
+            "decisions": result["decisions"],
+            "schedule": result["schedule"],
+        }
+
+        import json
+
+        st.download_button(
+            "⬇️ Download JSON report",
+            data=json.dumps(export, indent=2),
+            file_name="energy_detective_report.json",
+            mime="application/json",
+            use_container_width=True,
+        )
+
+        st.download_button(
+            "⬇️ Download hourly CSV",
+            data=pd.DataFrame(
+                report["hourly_comparison"]
+            ).to_csv(index=False),
+            file_name="energy_detective_hourly.csv",
+            mime="text/csv",
+            use_container_width=True,
+        )
+
+    st.divider()
+
+    if st.button("🔄 Clear results and start again"):
+        st.session_state.investigation = None
+        st.rerun()
+
+
+# ---------------- FOOTER ----------------
+
+st.divider()
+
+st.caption(
+    "ENERGY DETECTIVE AI | Educational AI Agent Project | "
+    "Python + Streamlit | Local Simulation"
+)
